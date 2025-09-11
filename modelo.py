@@ -4,19 +4,9 @@ from pathlib import Path
 import datetime as dt
 import re
 
-
-def calcular_tiempo_fermentacion(df):
-    # df: columnas 'Fecha' (o 'FechaHora'), 'D', 'T'
-    # Si tienes múltiples horarios por día, asegúrate de tener un timestamp por fila.
-    # Detecta primer instante con D==995 (término)
-    df = df.sort_values('Fecha')
-    inicio = df['Fecha'].iloc[0]
-    fin = df.loc[df['D'] == 995, 'Fecha'].min()
-    if pd.isna(fin):
-        raise ValueError("No se encontró D==995 (fermentación no terminada en el dataset).")
-    t_ref_days = (fin - inicio).total_seconds() / 86400.0
-    T_ref = df.loc[df['Fecha'] <= fin, 'T'].mean()
-    return t_ref_days, T_ref
+#DATOS DE REFERENCIA
+t_ref = 9
+T_ref = 17
 
 def tiempo_por_Q10(T_obj, t_ref, T_ref, Q10=2.5):
     # t(T) = t_ref / Q10^((T - T_ref)/10)
@@ -24,8 +14,7 @@ def tiempo_por_Q10(T_obj, t_ref, T_ref, Q10=2.5):
 
 #===============================================================================
 excel_path = Path("/home/camilo/Documents/cii-vct-tesis/Resultados/2024/I+D Nutricion Temperatura.xlsx")
-sheet_name = "T° y D°"  # cámbialo si tu pestaña tiene otro nombre exacto
-
+sheet_name = "T° y D°"  # cambiar segun el nombre de la hoja
 if not excel_path.exists():
     raise FileNotFoundError(f"No existe el archivo:\n{excel_path}")
 
@@ -97,8 +86,10 @@ for _, row in raw.iterrows():
         d_val = pd.to_numeric(row.get(d_col, np.nan), errors="coerce")
         t_val = pd.to_numeric(row.get(t_col, np.nan), errors="coerce")
         if pd.notna(d_val) and pd.notna(t_val):
+            # Convención del archivo: 03:00 pertenece al mismo día indicado en la columna 'Fecha'
+            fecha_use = fecha_base
             ts = pd.Timestamp(
-                year=fecha_base.year, month=fecha_base.month, day=fecha_base.day,
+                year=fecha_use.year, month=fecha_use.month, day=fecha_use.day,
                 hour=h, minute=0, second=0
             )
             registros.append({"Fecha": ts, "D": float(d_val), "T": float(t_val)})
@@ -129,7 +120,6 @@ if missing:
 
 df = df.dropna(subset=expected_cols).sort_values("Fecha")
 
-t_ref, T_ref = calcular_tiempo_fermentacion(df)
 t_pred_14C = tiempo_por_Q10(14.0, t_ref, T_ref, Q10=2.5)
 t_pred_20C = tiempo_por_Q10(20.0, t_ref, T_ref, Q10=2.5)
 
